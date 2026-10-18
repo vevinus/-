@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>컷메이트 · CapCut Agent</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="컷메이트 홈"><span class="logo">✂</span>컷메이트<span class="beta">BETA</span></a>
+    <div class="nav-label">WORKSPACE</div>
+    <div class="nav-item active"><span>▣</span> 자동 편집 스튜디오</div>
+    <div class="side-note"><span class="green-dot"></span> 내 PC에서 처리<br><small>영상과 음성을 외부 AI 서버로<br>전송하지 않아요.</small></div>
+    <div class="sidebar-bottom">CAPCUT AGENT<br><span>반복 편집은 맡기고,<br>이야기에 집중하세요.</span></div>
+  </aside>
+  <main>
+    <header><div><span class="breadcrumb">워크스페이스 <span>/</span> 자동 편집</span><h1>좋은 장면만, 자연스럽게.</h1><p>무음과 멈춘 화면을 정리하고, 자막과 사운드로 완성하세요.</p></div><div class="local-badge"><span class="green-dot"></span> Windows · 로컬 편집</div></header>
+    <div class="steps"><span class="current" id="step1"><b>1</b> 영상 불러오기</span><i></i><span id="step2"><b>2</b> AI 분석 & 검토</span><i></i><span id="step3"><b>3</b> 캡컷으로 이어서</span></div>
+    <section id="upload-section" class="upload-layout">
+      <div class="card upload-card"><div class="section-heading"><h2>어떤 영상을 편집할까요?</h2><span>01 / IMPORT</span></div>
+        <label id="dropzone" class="dropzone" tabindex="0" role="button"><input type="file" id="file" accept=".mp4,.mov,.mkv,.webm,.avi,.m4v" hidden><span class="upload-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg></span><strong id="file-label">영상을 여기에 끌어다 놓으세요</strong><p>또는 클릭해서 파일 선택</p><span class="formats">MP4 · MOV · MKV · WEBM · AVI · M4V &nbsp; 최대 4GB / 4시간</span></label>
+        <div class="privacy">◈ &nbsp; 원본은 그대로 보관하고, 새로운 편집 프로젝트를 만들어요.</div>
+      </div>
+      <div class="card settings"><div class="section-heading"><h2>편집 레시피</h2><span>✦</span></div>
+        <div class="setting"><label for="silence">무음 컷 기준 <output id="silence-value">0.7초</output></label><input id="silence" type="range" min="0.3" max="2.5" step="0.1" value="0.7"><small>이 시간보다 긴 무음을 컷 후보로 찾아요.</small></div>
+        <div class="setting"><label for="freeze">화면 정지 기준 <output id="freeze-value">1.0초</output></label><input id="freeze" type="range" min="0.3" max="5" step="0.1" value="1"><small>정지 화면은 기본 보존해요. 분석 후 선택할 수 있어요.</small></div>
+        <div class="setting toggle-row"><div><label for="transcribe">자동 자막 생성</label><small>Whisper로 음성 인식 · API 키 없이</small></div><input id="transcribe" type="checkbox" class="switch" checked></div>
+        <div class="select-row"><label>인식 언어<select id="language"><option value="ko">한국어</option><option value="auto">자동 감지</option><option value="en">영어</option></select></label><label>자막 모델<select id="model"><option value="tiny">빠르게 · tiny</option><option value="base" selected>균형 있게 · base</option><option value="small">정확하게 · small</option></select></label></div>
+        <button class="primary full" id="analyze" disabled>✦ &nbsp; 자동 편집 시작 <span>→</span></button><p class="hint">첫 자막 생성 시 모델 다운로드에 시간이 걸려요.</p>
+      </div>
+    </section>
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+    <div id="warnings" hidden></div>
+    <section id="editor" hidden>
+      <div class="editor-heading"><div><h2 id="video-title">편집 검토</h2><p id="summary"></p></div><button class="secondary" id="new-file">＋ 다른 영상</button></div>
+      <div class="editor-grid">
+        <div class="card preview-card"><div class="section-heading"><h2>미리보기</h2><span id="preview-label">원본 · 선택한 컷 건너뛰기</span></div><div class="player"><video id="video" controls playsinline preload="metadata"></video><div id="subtitle-overlay"></div></div><div class="timeline" id="timeline" aria-label="삭제 후보 타임라인"></div><div class="legend"><span><i class="legend-cut"></i> 선택한 컷</span><span><i class="legend-freeze"></i> 화면 정지 후보</span><span id="duration"></span></div><div class="preview-tip">재생하면 선택한 컷을 건너뛰어요. 내보내기 후에는 효과음이 포함된 편집 영상을 확인할 수 있어요.</div></div>
+        <div class="card review-card"><div class="tabs" role="tablist"><button class="tab active" data-tab="cuts">컷 <span id="cut-count">0</span></button><button class="tab" data-tab="captions">자막 <span id="caption-count">0</span></button><button class="tab" data-tab="effects">효과음 <span id="effect-count">0</span></button></div>
+          <div id="cuts-panel" class="panel"><div class="panel-tools"><span>선택한 구간을 삭제해요</span><button id="select-freezes" class="text-button">정지 구간 선택</button></div><div id="cuts-list"></div></div>
+          <div id="captions-panel" class="panel" hidden><div class="panel-tools"><span>원본 시간 기준 · 문구 수정 가능</span><button id="add-caption" class="text-button">＋ 자막</button></div><div id="captions-list"></div></div>
+          <div id="effects-panel" class="panel" hidden><div class="panel-tools"><span>표현·컷 전환 기반 추천</span><button id="add-effect" class="text-button">＋ 효과음</button></div><div id="effects-list"></div><p class="hint">합성 효과음 3종 · 삭제 구간의 효과음은 제외해요.<br>겹치는 효과음은 앞선 추천을 우선해요.</p></div>
+        </div>
+      </div>
+      <div class="export-bar"><div><strong>이제 캡컷에서 마무리하세요.</strong><p>영상 컷 · 수정 가능한 자막 · 별도 효과음 트랙</p></div><button id="export" class="primary">캡컷 프로젝트 만들기 &nbsp; ↗</button></div>
+      <div id="downloads" class="card downloads" hidden><div><h2>프로젝트가 준비됐어요</h2><p>ZIP 압축 해제 → 캡컷 종료 → 동봉된 설치 스크립트 실행 → 캡컷 재시작</p><small>캡컷 버전에 따라 호환성이 달라질 수 있어요. 설치 방법은 ZIP의 INSTALL.txt를 확인하세요.</small></div><div class="download-buttons"><a id="download-project" class="primary">프로젝트 ZIP ↓</a><a id="download-srt" class="secondary">자막 SRT ↓</a></div></div>
+    </section>
+    <section class="feature-row" id="features"><article><span>01 <b>◌</b></span><h3>빈틈은 덜어내고</h3><p>긴 무음과 반복된 정지 화면을 찾아<br>영상의 흐름을 정리해요.</p></article><article><span>02 <b>▤</b></span><h3>이야기는 또렷하게</h3><p>음성을 읽기 좋은 자막으로 바꾸고<br>문구를 직접 다듬을 수 있어요.</p></article><article><span>03 <b>♫</b></span><h3>포인트에 사운드를</h3><p>감탄과 질문, 장면 전환에 어울리는<br>작은 효과음을 더해요.</p></article></section>
+    <footer><span>컷메이트 · 편집의 시작을 가볍게</span><span>비공식 CapCut 프로젝트 생성 도구</span></footer>
+  </main>
+</body>
+</html>
