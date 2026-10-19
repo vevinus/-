@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .export import export_project
+from .alignment import align_script
 from .media import detect, probe, suggest_effects, transcribe
 from .models import Edit, Settings
 from .timeline import kept_ranges
@@ -75,13 +76,24 @@ def analyze(job_id: str, settings: Settings):
         update(job_id, status="analyzing", message="영상 정보와 무음·정지 구간 분석 중")
         meta = probe(source)
         cuts = detect(source, meta, settings)
-        captions, warnings = [], []
+        captions, warnings, alignment = [], [], None
         if settings.transcribe and meta["audio"]:
             update(job_id, message="음성에서 자막 생성 중 · 첫 실행은 모델을 내려받습니다")
             try:
-                captions = transcribe(source, directory, settings)
+                if settings.script:
+                    words = []
+                    transcribe(source, directory, settings, words_out=words)
+                    update(job_id, message="대본 문구를 음성 시간에 맞추는 중")
+                    captions, alignment = align_script(settings.script, words, meta["duration"])
+                    pending = sum(line["status"] == "review" for line in alignment["lines"])
+                    missing = sum(line["status"] == "unmatched" for line in alignment["lines"])
+                    if pending or missing:
+                        warnings.append(f"대본 정렬: 시간 확인이 필요한 자막 {pending}개, 음성에서 찾지 못한 문장 {missing}개. 자막 탭에서 확인하세요.")
+                else:
+                    captions = transcribe(source, directory, settings)
                 if not captions:
-                    warnings.append("인식된 음성이 없습니다. 언어 설정과 원본 소리를 확인하세요.")
+                    warnings.append("대본을 음성과 연결하지 못했습니다. 실제 발화와 대본·언어 설정을 확인하세요." if settings.script
+                                    else "인식된 음성이 없습니다. 언어 설정과 원본 소리를 확인하세요.")
             except Exception as exc:
                 warnings.append(f"자동 자막 생성 실패. 컷 검토와 수동 자막 입력은 가능합니다. 원인: {str(exc)[:400]}")
         if not meta["audio"]:
@@ -94,7 +106,7 @@ def analyze(job_id: str, settings: Settings):
                 effects.append(Effect(time=cut.end, kind="whoosh", reason="컷 전환", selected=False))
         edit = Edit(cuts=cuts, captions=captions, effects=sorted(effects, key=lambda e: e.time))
         update(job_id, status="analyzed", message="분석 완료 · 컷과 자막을 확인하세요", meta=meta,
-               edit=edit.model_dump(), warnings=warnings)
+               edit=edit.model_dump(), warnings=warnings, script_alignment=alignment)
     except Exception as exc:
         update(job_id, status="error", message=str(exc)[:2000])
 

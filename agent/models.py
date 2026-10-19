@@ -22,6 +22,12 @@ class Cut(Span):
 
 class Caption(Span):
     text: str = Field(max_length=2000)
+    needs_review: bool = False
+    alignment_score: float | None = Field(default=None, ge=0, le=1)
+
+
+class SpeechWord(Span):
+    text: str
 
 
 class Effect(BaseModel):
@@ -40,6 +46,16 @@ class Settings(BaseModel):
     transcribe: bool = True
     model: Literal["tiny", "base", "small"] = "base"
     language: Literal["ko", "en", "auto"] = "ko"
+    script: str = Field(default="", max_length=8000)
+
+    @model_validator(mode="after")
+    def script_requires_speech(self):
+        self.script = self.script.strip()
+        if self.script and not self.transcribe:
+            raise ValueError("대본 시간 맞추기에는 자동 자막 생성을 켜야 합니다.")
+        if self.script and not any(char.isalnum() for char in self.script):
+            raise ValueError("대본에 실제로 말하는 문장을 입력하세요.")
+        return self
 
 
 class Edit(BaseModel):

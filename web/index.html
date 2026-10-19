@@ -27,9 +27,16 @@
         <div class="setting"><label for="silence">무음 컷 기준 <output id="silence-value">0.7초</output></label><input id="silence" type="range" min="0.3" max="2.5" step="0.1" value="0.7"><small>이 시간보다 긴 무음을 컷 후보로 찾아요.</small></div>
         <div class="setting"><label for="freeze">화면 정지 기준 <output id="freeze-value">1.0초</output></label><input id="freeze" type="range" min="0.3" max="5" step="0.1" value="1"><small>정지 화면은 기본 보존해요. 분석 후 선택할 수 있어요.</small></div>
         <div class="setting toggle-row"><div><label for="transcribe">자동 자막 생성</label><small>Whisper로 음성 인식 · API 키 없이</small></div><input id="transcribe" type="checkbox" class="switch" checked></div>
+        <div class="subtitle-source"><label for="subtitle-source">자막 문구 가져오기</label><select id="subtitle-source"><option value="speech">영상 음성에서 자동 생성</option><option value="script">내 대본으로 시간 맞추기</option></select></div>
         <div class="select-row"><label>인식 언어<select id="language"><option value="ko">한국어</option><option value="auto">자동 감지</option><option value="en">영어</option></select></label><label>자막 모델<select id="model"><option value="tiny">빠르게 · tiny</option><option value="base" selected>균형 있게 · base</option><option value="small">정확하게 · small</option></select></label></div>
         <button class="primary full" id="analyze" disabled>✦ &nbsp; 자동 편집 시작 <span>→</span></button><p class="hint">첫 자막 생성 시 모델 다운로드에 시간이 걸려요.</p>
       </div>
+    </section>
+    <section id="script-section" class="card script-card" hidden>
+      <div class="section-heading"><h2>내 대본으로 자막 달기</h2><span id="script-count">0 / 8,000자</span></div>
+      <label for="script">영상에서 말하는 순서대로 대본을 붙여 넣으세요. 줄을 나누면 자막도 나누어져요.</label>
+      <textarea id="script" rows="6" maxlength="8000" placeholder="안녕하세요. 오늘은 제가 만든 영상을 소개할게요.&#10;긴 무음은 덜어내고, 대본에 맞춰 자막을 넣어볼게요."></textarea>
+      <p class="hint">문구는 대본을 사용하고, 시간은 영상 음성에서 찾아요. 긴 줄은 나누어 표시합니다. 음성에서 찾지 못한 문장은 임의로 시간을 만들지 않고 검토 목록에 남겨요.</p>
     </section>
     <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
     <div id="warnings" hidden></div>
@@ -39,7 +46,7 @@
         <div class="card preview-card"><div class="section-heading"><h2>미리보기</h2><span id="preview-label">원본 · 선택한 컷 건너뛰기</span></div><div class="player"><video id="video" controls playsinline preload="metadata"></video><div id="subtitle-overlay"></div></div><div class="timeline" id="timeline" aria-label="삭제 후보 타임라인"></div><div class="legend"><span><i class="legend-cut"></i> 선택한 컷</span><span><i class="legend-freeze"></i> 화면 정지 후보</span><span id="duration"></span></div><div class="preview-tip">재생하면 선택한 컷을 건너뛰어요. 내보내기 후에는 효과음이 포함된 편집 영상을 확인할 수 있어요.</div></div>
         <div class="card review-card"><div class="tabs" role="tablist"><button class="tab active" data-tab="cuts">컷 <span id="cut-count">0</span></button><button class="tab" data-tab="captions">자막 <span id="caption-count">0</span></button><button class="tab" data-tab="effects">효과음 <span id="effect-count">0</span></button></div>
           <div id="cuts-panel" class="panel"><div class="panel-tools"><span>선택한 구간을 삭제해요</span><button id="select-freezes" class="text-button">정지 구간 선택</button></div><div id="cuts-list"></div></div>
-          <div id="captions-panel" class="panel" hidden><div class="panel-tools"><span>원본 시간 기준 · 문구 수정 가능</span><button id="add-caption" class="text-button">＋ 자막</button></div><div id="captions-list"></div></div>
+          <div id="captions-panel" class="panel" hidden><div class="panel-tools"><span>원본 시간 기준 · 문구 수정 가능</span><button id="add-caption" class="text-button">＋ 자막</button></div><div id="alignment-report" hidden></div><div id="captions-list"></div></div>
           <div id="effects-panel" class="panel" hidden><div class="panel-tools"><span>표현·컷 전환 기반 추천</span><button id="add-effect" class="text-button">＋ 효과음</button></div><div id="effects-list"></div><p class="hint">합성 효과음 3종 · 삭제 구간의 효과음은 제외해요.<br>겹치는 효과음은 앞선 추천을 우선해요.</p></div>
         </div>
       </div>

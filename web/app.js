@@ -49,11 +49,20 @@ for (const name of ['dragleave', 'drop']) $('dropzone').addEventListener(name, (
 });
 $('dropzone').addEventListener('drop', (event) => choose(event.dataTransfer.files[0]));
 for (const id of ['silence', 'freeze']) $(id).addEventListener('input', () => $(id + '-value').textContent = `${Number($(id).value).toFixed(1)}초`);
-$('transcribe').addEventListener('change', () => {
+function subtitleMode() {
   $('model').disabled = $('language').disabled = !$('transcribe').checked;
-});
+  $('subtitle-source').disabled = !$('transcribe').checked;
+  $('script-section').hidden = $('upload-section').hidden || !$('transcribe').checked || $('subtitle-source').value !== 'script';
+}
+$('transcribe').addEventListener('change', subtitleMode);
+$('subtitle-source').addEventListener('change', subtitleMode);
+$('script').addEventListener('input', () => $('script-count').textContent = `${$('script').value.length.toLocaleString()} / 8,000자`);
 $('analyze').addEventListener('click', async () => {
   if (!selectedFile) return;
+  const script = $('transcribe').checked && $('subtitle-source').value === 'script' ? $('script').value.trim() : '';
+  if ($('transcribe').checked && $('subtitle-source').value === 'script' && !script) {
+    notice('영상에서 말하는 대본을 먼저 입력하세요.'); $('script').focus(); return;
+  }
   $('analyze').disabled = true;
   notice('영상을 불러오는 중입니다…', true);
   const body = new FormData();
@@ -61,11 +70,13 @@ $('analyze').addEventListener('click', async () => {
   body.append('settings', JSON.stringify({
     silence_duration: Number($('silence').value), freeze_duration: Number($('freeze').value),
     transcribe: $('transcribe').checked, model: $('model').value, language: $('language').value,
+    script,
   }));
   try {
     job = await api('/api/jobs', {method: 'POST', body});
     localStorage.setItem('cutmate-job', job.id);
     $('upload-section').hidden = true;
+    subtitleMode();
     $('features').hidden = true;
     poll(job.id);
   } catch (error) { notice(error.message); $('analyze').disabled = false; }
@@ -88,6 +99,7 @@ async function poll(id) {
       edit = structuredClone(job.edit);
       $('editor').hidden = false;
       $('upload-section').hidden = true;
+      subtitleMode();
       $('features').hidden = true;
       $('step1').classList.remove('current');
       $('step2').classList.add('current');
@@ -108,6 +120,7 @@ async function poll(id) {
     }
     if (job.status === 'error') {
       $('upload-section').hidden = false;
+      subtitleMode();
       $('analyze').disabled = false;
     }
   } catch (error) { notice(error.message + ' · 페이지를 새로고침하면 작업 상태를 다시 확인합니다.'); }
@@ -175,8 +188,16 @@ function numberField(value, onChange) {
     ariaLabel: '원본 기준 시간(초)', onchange: event => { onChange(Number(event.target.value)); dirty(); }});
 }
 function drawCaptions() {
+  drawAlignment();
   $('captions-list').replaceChildren(...edit.captions.map((caption, i) => {
     const row = el('div', {class: 'caption-row'});
+    if (caption.needs_review) {
+      row.classList.add('needs-review');
+      const badge = el('div', {class: 'caption-review'});
+      badge.append(el('span', {}, `시간 확인 필요 · 문구 일치 ${Math.round((caption.alignment_score || 0)*100)}%`),
+        el('button', {class: 'text-button', onclick: () => { caption.needs_review = false; dirty(); drawCaptions(); }}, '확인 완료'));
+      row.append(badge);
+    }
     const times = el('div', {class: 'time-fields'});
     times.append(el('button', {class: 'seek', onclick: () => seek(caption.start)}, '▷'),
       numberField(caption.start, v => caption.start = v), document.createTextNode('→'), numberField(caption.end, v => caption.end = v),
@@ -186,6 +207,27 @@ function drawCaptions() {
     return row;
   }));
   if (!edit.captions.length) $('captions-list').append(el('div', {class: 'empty'}, '생성된 자막이 없어요.\n자막을 직접 추가하거나 자동 자막을 켜고 다시 분석해 주세요.'));
+}
+function drawAlignment() {
+  const report = job.script_alignment;
+  const node = $('alignment-report');
+  node.hidden = !report;
+  node.replaceChildren();
+  if (!report) return;
+  const missing = report.lines.filter(line => line.status === 'unmatched');
+  node.append(el('p', {}, `대본 음성 매칭 ${Math.round(report.coverage*100)}% · 찾지 못한 문장 ${missing.length}개`));
+  node.append(el('small', {}, '문구 일치도를 뜻하며 시간 정확도는 재생해서 확인해 주세요.'));
+  for (const line of missing) {
+    const row = el('div', {class: 'unmatched-line'});
+    row.append(el('span', {}, `${line.line}. ${line.text}`), el('button', {class: 'text-button', onclick: () => {
+      const start = Math.max(0, Math.min(rendered ? 0 : video.currentTime, job.meta.duration-.1));
+      edit.captions.push({start, end: Math.min(start+2, job.meta.duration), text: line.text,
+        needs_review: true, alignment_score: line.score});
+      dirty(); drawCaptions();
+      notice('현재 재생 위치에 수동 자막을 추가했습니다. 시작·끝 시간을 맞춘 뒤 확인 완료를 누르세요.');
+    }}, '현재 위치에 추가'));
+    node.append(row);
+  }
 }
 function drawEffects() {
   $('effects-list').replaceChildren(...edit.effects.map((effect, i) => {
@@ -258,6 +300,7 @@ $('new-file').addEventListener('click', () => {
   $('upload-section').hidden = false; $('features').hidden = false;
   $('step1').classList.add('current'); $('step2').classList.remove('current'); $('step3').classList.remove('current');
   $('analyze').disabled = !selectedFile; notice('');
+  subtitleMode();
 });
 api('/api/health').then(health => {
   if (!health.ok) notice('FFmpeg 또는 FFprobe가 없습니다. README의 Windows 설치 안내를 확인하세요.');

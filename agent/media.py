@@ -4,7 +4,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from .models import Caption, Cut, Effect, Settings
+from .models import Caption, Cut, Effect, Settings, SpeechWord
 
 
 def run(args: list[str], timeout: int = 7200) -> str:
@@ -68,7 +68,7 @@ def detect(path: Path, meta: dict, settings: Settings) -> list[Cut]:
     return sorted(cuts, key=lambda c: (c.start, c.kind))
 
 
-def transcribe(path: Path, folder: Path, settings: Settings) -> list[Caption]:
+def transcribe(path: Path, folder: Path, settings: Settings, *, words_out: list[SpeechWord] | None = None) -> list[Caption]:
     os.environ.setdefault("HF_HOME", str(folder.parent / "huggingface"))
     from faster_whisper import WhisperModel
 
@@ -88,6 +88,9 @@ def transcribe(path: Path, folder: Path, settings: Settings) -> list[Caption]:
             if segment.text.strip() and segment.end > segment.start:
                 captions.append(Caption(start=segment.start, end=segment.end, text=segment.text.strip()))
             continue
+        if words_out is not None:
+            words_out.extend(SpeechWord(start=word.start, end=word.end, text=word.word)
+                             for word in words if word.end > word.start and word.word.strip())
         group = []
         for word in words:
             group.append(word)

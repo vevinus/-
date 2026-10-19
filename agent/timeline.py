@@ -39,8 +39,7 @@ def remap_captions(captions: list[Caption], kept: list[tuple[float, float]]) -> 
         for start, end in kept:
             left, right = max(start, caption.start), min(end, caption.end)
             if right - left >= 0.04 and caption.text.strip():
-                result.append(Caption(start=cursor + left - start, end=cursor + right - start,
-                                      text=caption.text))
+                result.append(caption.model_copy(update={"start": cursor + left - start, "end": cursor + right - start}))
             cursor += end - start
     result.sort(key=lambda c: c.start)
     # One editable subtitle track cannot contain overlapping segments.

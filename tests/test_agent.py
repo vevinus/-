@@ -153,3 +153,55 @@ def test_http_workflow_and_validation(media, tmp_path, monkeypatch):
 def test_installer_rejects_asset_traversal(tmp_path):
     with pytest.raises(ValueError):
         replace_paths("__CAPCUT_ASSETS__/../outside", tmp_path)
+
+
+def test_script_api_alignment_and_export(media, tmp_path, monkeypatch):
+    from agent import server
+    from agent.models import SpeechWord
+    monkeypatch.setattr(server, "DATA", tmp_path)
+    monkeypatch.setattr(server, "jobs", {})
+    def recognized(path, folder, settings, *, words_out=None):
+        assert settings.script
+        words_out.extend([SpeechWord(start=.2, end=.6, text='우와'),
+                          SpeechWord(start=.6, end=1, text='자동'),
+                          SpeechWord(start=1, end=1.4, text='편집을'),
+                          SpeechWord(start=1.4, end=2, text='시작합니다'),
+                          SpeechWord(start=4.2, end=4.6, text='그리고'),
+                          SpeechWord(start=4.6, end=5.2, text='결과를'),
+                          SpeechWord(start=5.2, end=5.8, text='확인합니다')])
+        return []
+    monkeypatch.setattr(server, 'transcribe', recognized)
+    script = '우와! 자동 편집을 시작합니다.\n그리고 결과를 확인합니다.\n촬영하지 않은 문장입니다.'
+    with TestClient(server.app) as client:
+        response = client.post('/api/jobs', files={'file': ('test.mp4', media.read_bytes())},
+                               data={'settings': json.dumps({'script': script})})
+        assert response.status_code == 202
+        job_id = response.json()['id']
+        job = wait_job(client, job_id)
+        assert job['status'] == 'analyzed', job
+        assert job['script_alignment']['lines'][-1]['status'] == 'unmatched'
+        assert any('찾지 못한 문장 1개' in message for message in job['warnings'])
+        assert [c['text'] for c in job['edit']['captions']] == ['우와!', '자동 편집을 시작합니다.', '그리고 결과를 확인합니다.']
+        assert client.post(f'/api/jobs/{job_id}/export', json=job['edit']).status_code == 202
+        exported = wait_job(client, job_id)
+        assert exported['status'] == 'exported', exported
+        text = client.get(f'/api/jobs/{job_id}/media/subtitles').content.decode('utf-8-sig')
+        assert '그리고 결과를 확인합니다.' in text and '촬영하지' not in text
+        assert '00:00:02,500' in text  # 4.2s original minus the ~1.7s silence cut.
+        assert exported['script_alignment'] == job['script_alignment']
+
+
+def test_script_asr_failure_remains_explicit(media, tmp_path, monkeypatch):
+    from agent import server
+    monkeypatch.setattr(server, 'DATA', tmp_path)
+    monkeypatch.setattr(server, 'jobs', {})
+    def failed(*args, **kwargs):
+        raise RuntimeError('모델 다운로드 불가')
+    monkeypatch.setattr(server, 'transcribe', failed)
+    with TestClient(server.app) as client:
+        response = client.post('/api/jobs', files={'file': ('test.mp4', media.read_bytes())},
+                               data={'settings': json.dumps({'script': '대본 내용입니다.'})})
+        job = wait_job(client, response.json()['id'])
+        assert job['edit']['captions'] == []
+        assert job['script_alignment'] is None
+        assert any('실패' in warning for warning in job['warnings'])
