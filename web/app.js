@@ -70,7 +70,7 @@ $('analyze').addEventListener('click', async () => {
   body.append('settings', JSON.stringify({
     silence_duration: Number($('silence').value), freeze_duration: Number($('freeze').value),
     transcribe: $('transcribe').checked, model: $('model').value, language: $('language').value,
-    script,
+    script, style_id: $('style-select').value,
   }));
   try {
     job = await api('/api/jobs', {method: 'POST', body});
@@ -247,7 +247,18 @@ function drawEffects() {
   }));
   if (!edit.effects.length) $('effects-list').append(el('div', {class: 'empty'}, '자동 추천할 표현이 없어요.\n원하는 위치에 효과음을 직접 추가할 수 있어요.'));
 }
-function drawAll() { drawSummary(); drawCuts(); drawCaptions(); drawEffects(); }
+function drawAll() {
+  const appearance = edit.caption_appearance;
+  const overlay = $('subtitle-overlay');
+  if (appearance) {
+    overlay.style.color = `rgb(${appearance.color.map(value => Math.round(value*255)).join(',')})`;
+    overlay.style.bottom = `${Math.max(4, Math.min(90, (1+appearance.y)*50))}%`;
+    overlay.style.fontSize = `clamp(12px, ${1.4*appearance.size/8}vw, ${23*appearance.size/8}px)`;
+    overlay.style.fontStyle = appearance.italic ? 'italic' : 'normal';
+    overlay.style.fontWeight = appearance.bold ? 'bold' : 'normal';
+  } else overlay.removeAttribute('style');
+  drawSummary(); drawCuts(); drawCaptions(); drawEffects();
+}
 $('select-freezes').addEventListener('click', () => {
   const freezes = edit.cuts.filter(c => c.kind === 'freeze');
   const select = freezes.some(c => !c.selected);
@@ -307,3 +318,79 @@ api('/api/health').then(health => {
 }).catch(() => notice('로컬 서버 연결을 확인하세요.'));
 const saved = localStorage.getItem('cutmate-job');
 if (saved && /^[a-f0-9]{32}$/.test(saved)) poll(saved);
+
+let stylePoll;
+async function loadStyles(preferred) {
+  const selected = preferred || $('style-select').value;
+  const styles = await api('/api/styles');
+  $('style-select').replaceChildren(el('option', {value: ''}, '기본 스타일'));
+  for (const style of styles) {
+    const ready = style.status === 'ready';
+    $('style-select').append(el('option', {value: style.id, disabled: !ready}, style.name + (ready ? '' : ` · ${style.status === 'error' ? '분석 실패' : '분석 중'}`)));
+  }
+  if (styles.some(style => style.id === selected && style.status === 'ready')) $('style-select').value = selected;
+  $('inspect-style').disabled = !$('style-select').value;
+}
+function drawStyle(profile) {
+  const report = $('style-report');
+  report.hidden = false;
+  report.replaceChildren(el('h3', {}, profile.name));
+  for (const warning of profile.warnings || []) report.append(el('p', {class: 'style-warning'}, warning));
+  const analysis = profile.analysis;
+  if (!analysis) return;
+  const counts = analysis.counts;
+  const version = analysis.application_versions?.last_modified_platform || analysis.application_versions?.platform;
+  if (version) report.append(el('p', {}, `프로젝트 기록 버전: CapCut ${version} · 생성 프로젝트의 실제 앱 열기는 별도 확인이 필요합니다.`));
+  report.append(el('p', {}, `프로젝트 ${analysis.duration.toFixed(2)}초 · 원본 ${profile.original_meta.duration.toFixed(2)}초 · 편집본 ${profile.edited_meta.duration.toFixed(2)}초`));
+  report.append(el('p', {}, `영상 ${counts.video_segments}개(정지 이미지 ${counts.still_segments}개) · 텍스트 ${counts.text_segments}개 · 오디오 ${counts.audio_segments}개 · 영상 키프레임 ${counts.video_keyframed_segments}개`));
+  if (analysis.caption_appearance) {
+    const appearance = analysis.caption_appearance;
+    report.append(el('p', {}, `적용 가능한 해설 자막: 크기 ${appearance.size}, 위치 ${appearance.y.toFixed(2)} · 분할 목표 ${analysis.caption_targets.characters}자 / ${analysis.caption_targets.seconds}초`));
+  }
+  const details = el('details'); details.append(el('summary', {}, '추출한 타임라인 보기'));
+  for (const text of analysis.texts) details.append(el('p', {}, `${time(text.start)}–${time(text.end)} · ${text.role} · ${text.text}`));
+  for (const sound of analysis.audio) details.append(el('p', {}, `${time(sound.start)}–${time(sound.end)} · ${sound.kind} · ${sound.name}`));
+  report.append(details);
+  if (profile.comparison) {
+    const comparison = profile.comparison;
+    report.append(el('p', {class: 'hint'}, `화면 유사도 후보 ${comparison.matched_samples}/${comparison.samples}개 · 약 ${comparison.interval_seconds}초 간격. 정확한 컷 정답이나 의미 분석 결과가 아닙니다.`));
+    const points = el('details'); points.append(el('summary', {}, '원본·편집본 대응 후보 보기'));
+    for (const point of comparison.points) points.append(el('p', {}, `편집 ${time(point.edited_time)} → 원본 ${time(point.original_time)} · 유사도 ${point.similarity}${point.candidate ? '' : ' · 불확실'}`));
+    report.append(points);
+  }
+}
+async function pollStyle(id) {
+  clearTimeout(stylePoll);
+  try {
+    const profile = await api(`/api/styles/${id}`);
+    $('style-progress').textContent = profile.message;
+    if (['queued', 'analyzing'].includes(profile.status)) {
+      stylePoll = setTimeout(() => pollStyle(id), 1200); return;
+    }
+    $('register-style').disabled = false;
+    await loadStyles(profile.status === 'ready' ? id : undefined);
+    drawStyle(profile);
+  } catch (error) {
+    $('style-progress').textContent = error.message;
+    $('register-style').disabled = false;
+  }
+}
+$('toggle-styles').addEventListener('click', () => $('style-studio').hidden = !$('style-studio').hidden);
+$('style-select').addEventListener('change', () => $('inspect-style').disabled = !$('style-select').value);
+$('inspect-style').addEventListener('click', () => { $('style-studio').hidden = false; pollStyle($('style-select').value); });
+$('register-style').addEventListener('click', async () => {
+  const project = $('example-project').files[0], original = $('example-original').files[0], edited = $('example-edited').files[0];
+  if (!$('style-name').value.trim() || !project || !original || !edited) {
+    $('style-progress').textContent = '스타일 이름과 세 파일을 모두 선택하세요.'; return;
+  }
+  const body = new FormData();
+  body.append('name', $('style-name').value.trim()); body.append('kind', $('style-kind').value);
+  body.append('project', project); body.append('original', original); body.append('edited', edited);
+  $('register-style').disabled = true; $('style-report').hidden = true;
+  $('style-progress').textContent = '예시 파일을 업로드하는 중입니다…';
+  try {
+    const result = await api('/api/styles', {method: 'POST', body});
+    localStorage.setItem('cutmate-style', result.id); pollStyle(result.id);
+  } catch (error) { $('style-progress').textContent = error.message; $('register-style').disabled = false; }
+});
+loadStyles(localStorage.getItem('cutmate-style')).catch(error => $('style-progress').textContent = error.message);

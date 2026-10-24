@@ -133,10 +133,12 @@ def export_project(source: Path, meta: dict, edit: Edit, folder: Path, preview: 
         cursor += length
     if captions:
         script.add_track(cc.TrackType.text, "자막")
+        appearance = edit.caption_appearance
         for caption in captions:
             segment = cc.TextSegment(caption.text, cc.Timerange(round(caption.start * 1e6), round((caption.end-caption.start) * 1e6)),
-                                     style=cc.TextStyle(size=8, bold=True, align=1, auto_wrapping=True),
-                                     border=cc.TextBorder(width=20), clip_settings=cc.ClipSettings(transform_y=-.78))
+                                     style=cc.TextStyle(size=appearance.size, bold=appearance.bold, italic=appearance.italic,
+                                                        color=appearance.color, align=1, auto_wrapping=True),
+                                     border=cc.TextBorder(width=20), clip_settings=cc.ClipSettings(transform_y=appearance.y))
             script.add_segment(segment, "자막")
     if events:
         script.add_track(cc.TrackType.audio, "효과음")
@@ -162,7 +164,8 @@ def export_project(source: Path, meta: dict, edit: Edit, folder: Path, preview: 
                       tm_duration=cursor, tm_draft_create=int(time.time() * 1e6), tm_draft_modified=int(time.time() * 1e6))
     meta_path.write_text(json.dumps(draft_meta, ensure_ascii=False), encoding="utf-8")
     (folder / "subtitles.srt").write_text(srt(captions), encoding="utf-8-sig")
-    timeline = {"duration": duration, "kept": kept, "captions": [c.model_dump() for c in captions], "effects": events}
+    timeline = {"duration": duration, "kept": kept, "captions": [c.model_dump() for c in captions], "effects": events,
+                "caption_appearance": edit.caption_appearance.model_dump()}
     (folder / "timeline.json").write_text(json.dumps(timeline, ensure_ascii=False, indent=2), encoding="utf-8")
     shutil.copy2(Path(__file__).resolve().parents[1] / "install_project.py", folder / "install_project.py")
     (folder / "INSTALL.txt").write_text(

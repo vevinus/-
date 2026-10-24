@@ -18,12 +18,23 @@
   <main>
     <header><div><span class="breadcrumb">워크스페이스 <span>/</span> 자동 편집</span><h1>좋은 장면만, 자연스럽게.</h1><p>무음과 멈춘 화면을 정리하고, 자막과 사운드로 완성하세요.</p></div><div class="local-badge"><span class="green-dot"></span> Windows · 로컬 편집</div></header>
     <div class="steps"><span class="current" id="step1"><b>1</b> 영상 불러오기</span><i></i><span id="step2"><b>2</b> AI 분석 & 검토</span><i></i><span id="step3"><b>3</b> 캡컷으로 이어서</span></div>
+    <div class="style-toolbar"><button id="toggle-styles" class="secondary">＋ 원본·편집본으로 스타일 등록</button><span>캡컷 프로젝트에서 편집 규칙을 가져와요</span></div>
+    <section id="style-studio" class="card script-card" hidden>
+      <div class="section-heading"><h2>편집 예시 등록</h2><span>EXAMPLE → STYLE</span></div>
+      <p class="hint">같은 영상의 프로젝트 ZIP·원본·편집본을 올리세요. 자막 스타일과 편집 내역을 저장합니다. 장면을 이해하는 AI 학습이나 해설·컷 자동 작성 기능은 아직 포함하지 않습니다.</p>
+      <div class="style-inputs"><label>스타일 이름<input id="style-name" type="text" maxlength="80" placeholder="예: 반전 해설형"></label><label>영상 종류<select id="style-kind"><option value="commentary">해외 영상 해설형</option><option value="twist">재미있는 반전형</option><option value="information">정보 전달형</option></select></label></div>
+      <div class="example-files"><label>① 캡컷 프로젝트 ZIP<input id="example-project" type="file" accept=".zip"></label><label>② 편집 전 원본<input id="example-original" type="file" accept=".mp4,.mov,.mkv,.webm,.avi,.m4v"></label><label>③ 편집 완료 영상<input id="example-edited" type="file" accept=".mp4,.mov,.mkv,.webm,.avi,.m4v"></label></div>
+      <button id="register-style" class="primary">예시 분석 · 스타일 저장</button>
+      <p id="style-progress" class="hint" role="status" aria-live="polite"></p>
+      <div id="style-report" hidden></div>
+    </section>
     <section id="upload-section" class="upload-layout">
       <div class="card upload-card"><div class="section-heading"><h2>어떤 영상을 편집할까요?</h2><span>01 / IMPORT</span></div>
         <label id="dropzone" class="dropzone" tabindex="0" role="button"><input type="file" id="file" accept=".mp4,.mov,.mkv,.webm,.avi,.m4v" hidden><span class="upload-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg></span><strong id="file-label">영상을 여기에 끌어다 놓으세요</strong><p>또는 클릭해서 파일 선택</p><span class="formats">MP4 · MOV · MKV · WEBM · AVI · M4V &nbsp; 최대 4GB / 4시간</span></label>
         <div class="privacy">◈ &nbsp; 원본은 그대로 보관하고, 새로운 편집 프로젝트를 만들어요.</div>
       </div>
       <div class="card settings"><div class="section-heading"><h2>편집 레시피</h2><span>✦</span></div>
+        <div class="subtitle-source"><label for="style-select">저장한 편집 스타일</label><select id="style-select"><option value="">기본 스타일</option></select><button id="inspect-style" class="text-button" disabled>스타일 분석 보기</button><small class="hint">자막 모양·분할 목표를 적용합니다. 장면별 컷·해설은 자동 복제하지 않습니다.</small></div>
         <div class="setting"><label for="silence">무음 컷 기준 <output id="silence-value">0.7초</output></label><input id="silence" type="range" min="0.3" max="2.5" step="0.1" value="0.7"><small>이 시간보다 긴 무음을 컷 후보로 찾아요.</small></div>
         <div class="setting"><label for="freeze">화면 정지 기준 <output id="freeze-value">1.0초</output></label><input id="freeze" type="range" min="0.3" max="5" step="0.1" value="1"><small>정지 화면은 기본 보존해요. 분석 후 선택할 수 있어요.</small></div>
         <div class="setting toggle-row"><div><label for="transcribe">자동 자막 생성</label><small>Whisper로 음성 인식 · API 키 없이</small></div><input id="transcribe" type="checkbox" class="switch" checked></div>

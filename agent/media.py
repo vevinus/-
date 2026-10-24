@@ -95,7 +95,7 @@ def transcribe(path: Path, folder: Path, settings: Settings, *, words_out: list[
         for word in words:
             group.append(word)
             text = "".join(w.word for w in group).strip()
-            if len(text) >= 22 or word.end - group[0].start >= 3 or word.word.rstrip().endswith((".", "?", "!")):
+            if len(text) >= settings.caption_characters or word.end - group[0].start >= settings.caption_seconds or word.word.rstrip().endswith((".", "?", "!")):
                 if word.end > group[0].start and text:
                     captions.append(Caption(start=group[0].start, end=word.end, text=text))
                 group = []

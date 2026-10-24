@@ -38,6 +38,20 @@ class Effect(BaseModel):
     volume: float = Field(default=0.22, ge=0, le=1)
 
 
+class CaptionAppearance(BaseModel):
+    size: float = Field(default=8, ge=4, le=40)
+    y: float = Field(default=-.78, ge=-1, le=1)
+    color: tuple[float, float, float] = (1, 1, 1)
+    bold: bool = True
+    italic: bool = False
+
+    @model_validator(mode="after")
+    def valid_color(self):
+        if not all(0 <= value <= 1 for value in self.color):
+            raise ValueError("자막 색상 값은 0~1 범위여야 합니다.")
+        return self
+
+
 class Settings(BaseModel):
     silence_db: float = Field(default=-35, ge=-65, le=-15)
     silence_duration: float = Field(default=0.7, ge=0.3, le=5)
@@ -47,6 +61,9 @@ class Settings(BaseModel):
     model: Literal["tiny", "base", "small"] = "base"
     language: Literal["ko", "en", "auto"] = "ko"
     script: str = Field(default="", max_length=8000)
+    style_id: str = Field(default="", max_length=32)
+    caption_characters: int = Field(default=22, ge=6, le=80)
+    caption_seconds: float = Field(default=3, ge=.5, le=8)
 
     @model_validator(mode="after")
     def script_requires_speech(self):
@@ -62,3 +79,4 @@ class Edit(BaseModel):
     cuts: list[Cut] = Field(default_factory=list, max_length=10000)
     captions: list[Caption] = Field(default_factory=list, max_length=10000)
     effects: list[Effect] = Field(default_factory=list, max_length=10000)
+    caption_appearance: CaptionAppearance = Field(default_factory=CaptionAppearance)
